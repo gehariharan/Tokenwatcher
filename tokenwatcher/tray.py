@@ -45,10 +45,14 @@ class TrayApp:
         threading.Thread(target=self._refresh_loop, daemon=True).start()
 
     def _refresh_loop(self) -> None:
-        # Timer-driven ticks skip on-demand providers to avoid repeated 401s
-        # and to respect the user's preference that Claude is click-only.
+        # First tick fetches everything (including on-demand providers like Claude)
+        # so the user sees full state as soon as the app starts. After that, the
+        # periodic timer only refreshes regular providers and leaves on-demand
+        # results stale until the user clicks "Refresh all".
+        first = True
         while not self._stop.is_set():
-            self._do_refresh(include_on_demand=False)
+            self._do_refresh(include_on_demand=first)
+            first = False
             self._stop.wait(self._refresh_seconds)
 
     def _do_refresh(self, include_on_demand: bool) -> None:

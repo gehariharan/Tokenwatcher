@@ -9,7 +9,7 @@ from typing import Sequence
 
 from .config import Config
 from .providers import ClaudeProvider, CodexProvider
-from .providers.base import ProviderResult, ProviderStatus
+from .providers.base import ProviderResult, ProviderStatus, pending_result
 
 log = logging.getLogger("tokenwatcher")
 
@@ -24,15 +24,18 @@ def _setup_logging(verbose: bool) -> None:
 def _build_providers(cfg: Config) -> list:
     out = []
     if cfg.providers.get("codex") and cfg.providers["codex"].enabled:
-        out.append(CodexProvider(browser=cfg.browser))
+        out.append(CodexProvider())
     if cfg.providers.get("claude") and cfg.providers["claude"].enabled:
-        out.append(ClaudeProvider(browser=cfg.browser))
+        out.append(ClaudeProvider())
     return out
 
 
-def _fetch_all(providers: list) -> list[ProviderResult]:
+def _fetch_providers(providers: list, include_on_demand: bool) -> list[ProviderResult]:
     results: list[ProviderResult] = []
     for p in providers:
+        if getattr(p, "on_demand_only", False) and not include_on_demand:
+            results.append(pending_result(p.name))
+            continue
         try:
             results.append(p.fetch())
         except Exception as e:  # noqa: BLE001
@@ -74,6 +77,11 @@ def main(argv: Sequence[str]) -> int:
     parser = argparse.ArgumentParser(prog="tokenwatcher")
     parser.add_argument("--once", action="store_true", help="fetch once and print, no tray")
     parser.add_argument("--json", action="store_true", help="with --once: print JSON")
+    parser.add_argument(
+        "--all",
+        action="store_true",
+        help="with --once: also fetch on-demand providers (Claude)",
+    )
     parser.add_argument("-v", "--verbose", action="store_true")
     args = parser.parse_args(argv)
 
@@ -86,7 +94,7 @@ def main(argv: Sequence[str]) -> int:
         return 2
 
     if args.once:
-        results = _fetch_all(providers)
+        results = _fetch_providers(providers, include_on_demand=args.all)
         _print_results(results, as_json=args.json)
         has_any_ok = any(r.status is ProviderStatus.OK for r in results)
         return 0 if has_any_ok else 1
@@ -94,7 +102,9 @@ def main(argv: Sequence[str]) -> int:
     from .tray import TrayApp
 
     app = TrayApp(
-        fetch_all=lambda: _fetch_all(providers),
+        fetch_fn=lambda include_on_demand: _fetch_providers(
+            providers, include_on_demand=include_on_demand
+        ),
         refresh_seconds=cfg.refresh_seconds,
     )
     app.run()

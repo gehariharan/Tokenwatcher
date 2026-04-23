@@ -5,103 +5,91 @@ from datetime import datetime, timezone
 
 import requests
 
-from ..cookies import cookie_value, load_cookies_for_domain
+from ..auth import AuthError, AuthMissing, load_codex_auth
 from .base import ProviderResult, ProviderStatus, RateWindow
 
 log = logging.getLogger(__name__)
 
-CHATGPT_DOMAIN = "chatgpt.com"
-SESSION_URL = "https://chatgpt.com/api/auth/session"
 USAGE_URL = "https://chatgpt.com/backend-api/wham/usage"
-SESSION_COOKIE_NAME = "__Secure-next-auth.session-token"
 
-USER_AGENT = (
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
-    "(KHTML, like Gecko) Chrome/131.0 Safari/537.36 TokenWatcher/0.1"
-)
+USER_AGENT = "TokenWatcher/0.1 (+https://github.com/) compatible"
 
 
 class CodexProvider:
     name = "codex"
+    on_demand_only = False
 
-    def __init__(self, browser: str = "auto", timeout: float = 20.0) -> None:
-        self.browser = browser
+    def __init__(self, timeout: float = 20.0) -> None:
         self.timeout = timeout
 
     def fetch(self) -> ProviderResult:
-        jar = load_cookies_for_domain(CHATGPT_DOMAIN, browser=self.browser)
-        if jar is None:
+        try:
+            auth = load_codex_auth()
+        except AuthMissing as e:
             return ProviderResult(
-                name=self.name,
-                status=ProviderStatus.NOT_LOGGED_IN,
-                error="No chatgpt.com cookies found in any supported browser",
+                name=self.name, status=ProviderStatus.NOT_LOGGED_IN, error=str(e)
             )
-        if cookie_value(jar, SESSION_COOKIE_NAME, CHATGPT_DOMAIN) is None:
+        except AuthError as e:
             return ProviderResult(
-                name=self.name,
-                status=ProviderStatus.NOT_LOGGED_IN,
-                error=f"Missing cookie {SESSION_COOKIE_NAME} — sign in to chatgpt.com",
+                name=self.name, status=ProviderStatus.ERROR, error=str(e)
             )
 
-        session = requests.Session()
-        session.cookies = jar  # type: ignore[assignment]
-        session.headers.update({"User-Agent": USER_AGENT, "Accept": "application/json"})
+        claims = auth.id_token_claims
+        email = claims.get("email")
+        plan = claims.get("chatgpt_plan_type")
+        account_id = auth.account_id or claims.get("chatgpt_account_id")
+
+        headers = {
+            "Authorization": f"Bearer {auth.access_token}",
+            "User-Agent": USER_AGENT,
+            "Accept": "application/json",
+        }
+        if account_id:
+            headers["ChatGPT-Account-Id"] = account_id
 
         try:
-            access_token, email = self._exchange_session(session)
-        except requests.RequestException as e:
-            return ProviderResult(
-                name=self.name, status=ProviderStatus.ERROR, error=f"session fetch: {e}"
-            )
-        if not access_token:
-            return ProviderResult(
-                name=self.name,
-                status=ProviderStatus.NOT_LOGGED_IN,
-                error="Session cookie present but no accessToken returned (expired?)",
-            )
-
-        try:
-            data = self._fetch_usage(session, access_token)
-        except requests.HTTPError as e:
-            return ProviderResult(
-                name=self.name,
-                status=ProviderStatus.ERROR,
-                account_label=email,
-                error=f"wham/usage {e.response.status_code}",
-            )
+            r = requests.get(USAGE_URL, headers=headers, timeout=self.timeout)
         except requests.RequestException as e:
             return ProviderResult(
                 name=self.name,
                 status=ProviderStatus.ERROR,
+                plan=plan,
                 account_label=email,
-                error=f"wham/usage: {e}",
+                error=f"request failed: {e}",
             )
 
-        return self._parse(data, email)
+        if r.status_code in (401, 403):
+            return ProviderResult(
+                name=self.name,
+                status=ProviderStatus.NOT_LOGGED_IN,
+                plan=plan,
+                account_label=email,
+                error="Access token rejected — run `codex` once to refresh",
+            )
+        if r.status_code >= 400:
+            return ProviderResult(
+                name=self.name,
+                status=ProviderStatus.ERROR,
+                plan=plan,
+                account_label=email,
+                error=f"wham/usage HTTP {r.status_code}",
+            )
 
-    def _exchange_session(self, session: requests.Session) -> tuple[str | None, str | None]:
-        r = session.get(SESSION_URL, timeout=self.timeout)
-        r.raise_for_status()
-        if not r.text.strip():
-            return None, None
-        j = r.json()
-        token = j.get("accessToken")
-        user = j.get("user") or {}
-        email = user.get("email")
-        return token, email
+        try:
+            data = r.json()
+        except ValueError as e:
+            return ProviderResult(
+                name=self.name,
+                status=ProviderStatus.ERROR,
+                plan=plan,
+                account_label=email,
+                error=f"invalid JSON: {e}",
+            )
 
-    def _fetch_usage(self, session: requests.Session, access_token: str) -> dict:
-        r = session.get(
-            USAGE_URL,
-            headers={"Authorization": f"Bearer {access_token}"},
-            timeout=self.timeout,
-        )
-        r.raise_for_status()
-        return r.json()
+        return self._parse(data, plan, email)
 
     @staticmethod
-    def _parse(data: dict, email: str | None) -> ProviderResult:
-        plan = data.get("plan_type")
+    def _parse(data: dict, plan: str | None, email: str | None) -> ProviderResult:
         windows: list[RateWindow] = []
         rate_limit = data.get("rate_limit") or {}
         for key, label in (("primary_window", "5h"), ("secondary_window", "7d")):
@@ -117,19 +105,19 @@ class CodexProvider:
                     resets_at=_from_unix(reset),
                 )
             )
+
         credits_balance: str | None = None
         credits = data.get("credits") or {}
         if credits.get("has_credits"):
             if credits.get("unlimited"):
                 credits_balance = "unlimited credits"
-            else:
-                bal = credits.get("balance")
-                if bal is not None:
-                    credits_balance = f"credits: {bal}"
+            elif credits.get("balance") is not None:
+                credits_balance = f"credits: {credits['balance']}"
+
         return ProviderResult(
             name="codex",
             status=ProviderStatus.OK,
-            plan=plan,
+            plan=plan or data.get("plan_type"),
             account_label=email,
             windows=windows,
             credits_balance=credits_balance,

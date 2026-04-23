@@ -5,43 +5,44 @@ from datetime import datetime, timezone
 
 import requests
 
-from ..cookies import cookie_value, load_cookies_for_domain
+from ..auth import AuthError, AuthMissing, load_claude_auth
 from .base import ProviderResult, ProviderStatus, RateWindow
 
 log = logging.getLogger(__name__)
-
-CLAUDE_DOMAIN = "claude.ai"
-SESSION_COOKIE_NAME = "sessionKey"
 
 BASE = "https://claude.ai/api"
 ORGS_URL = f"{BASE}/organizations"
 ACCOUNT_URL = f"{BASE}/account"
 
-USER_AGENT = (
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
-    "(KHTML, like Gecko) Chrome/131.0 Safari/537.36 TokenWatcher/0.1"
-)
+USER_AGENT = "TokenWatcher/0.1 (+https://github.com/) compatible"
 
 
 class ClaudeProvider:
     name = "claude"
+    on_demand_only = True
 
-    def __init__(self, browser: str = "auto", timeout: float = 20.0) -> None:
-        self.browser = browser
+    def __init__(self, timeout: float = 20.0) -> None:
         self.timeout = timeout
 
     def fetch(self) -> ProviderResult:
-        jar = load_cookies_for_domain(CLAUDE_DOMAIN, browser=self.browser)
-        if jar is None or cookie_value(jar, SESSION_COOKIE_NAME, CLAUDE_DOMAIN) is None:
+        try:
+            auth = load_claude_auth()
+        except AuthMissing as e:
             return ProviderResult(
-                name=self.name,
-                status=ProviderStatus.NOT_LOGGED_IN,
-                error="No claude.ai sessionKey cookie — sign in to claude.ai",
+                name=self.name, status=ProviderStatus.NOT_LOGGED_IN, error=str(e)
+            )
+        except AuthError as e:
+            return ProviderResult(
+                name=self.name, status=ProviderStatus.ERROR, error=str(e)
             )
 
+        headers = {
+            "Authorization": f"Bearer {auth.access_token}",
+            "User-Agent": USER_AGENT,
+            "Accept": "application/json",
+        }
         session = requests.Session()
-        session.cookies = jar  # type: ignore[assignment]
-        session.headers.update({"User-Agent": USER_AGENT, "Accept": "application/json"})
+        session.headers.update(headers)
 
         try:
             orgs = self._get(session, ORGS_URL)
@@ -50,7 +51,8 @@ class ClaudeProvider:
                 return ProviderResult(
                     name=self.name,
                     status=ProviderStatus.ERROR,
-                    error="No chat-capable organization found on this account",
+                    plan=auth.subscription_type,
+                    error="No chat-capable organization on this account",
                 )
             org_id = org["uuid"]
             org_name = org.get("name")
@@ -63,7 +65,7 @@ class ClaudeProvider:
                 pass
 
             usage = self._get(session, f"{BASE}/organizations/{org_id}/usage")
-            spend = None
+            spend: dict | None = None
             try:
                 spend = self._get(
                     session, f"{BASE}/organizations/{org_id}/overage_spend_limit"
@@ -76,17 +78,24 @@ class ClaudeProvider:
                 return ProviderResult(
                     name=self.name,
                     status=ProviderStatus.NOT_LOGGED_IN,
-                    error=f"claude.ai returned {code} — session likely expired",
+                    plan=auth.subscription_type,
+                    error=f"claude.ai returned {code} — run Claude Code once to refresh",
                 )
             return ProviderResult(
-                name=self.name, status=ProviderStatus.ERROR, error=f"HTTP {code}"
+                name=self.name,
+                status=ProviderStatus.ERROR,
+                plan=auth.subscription_type,
+                error=f"HTTP {code}",
             )
         except requests.RequestException as e:
             return ProviderResult(
-                name=self.name, status=ProviderStatus.ERROR, error=str(e)
+                name=self.name,
+                status=ProviderStatus.ERROR,
+                plan=auth.subscription_type,
+                error=str(e),
             )
 
-        return self._parse(usage, spend, org_name, account_email)
+        return self._parse(usage, spend, auth.subscription_type, account_email, org_name)
 
     def _get(self, session: requests.Session, url: str) -> dict:
         r = session.get(url, timeout=self.timeout)
@@ -97,8 +106,9 @@ class ClaudeProvider:
     def _parse(
         usage: dict,
         spend: dict | None,
-        org_name: str | None,
+        plan: str | None,
         email: str | None,
+        org_name: str | None,
     ) -> ProviderResult:
         windows: list[RateWindow] = []
         for key, label in (
@@ -132,6 +142,7 @@ class ClaudeProvider:
         return ProviderResult(
             name="claude",
             status=ProviderStatus.OK,
+            plan=plan,
             account_label=email or org_name,
             windows=windows,
             credits_balance=credits_balance,
@@ -139,13 +150,13 @@ class ClaudeProvider:
 
 
 def _pick_org(orgs: object) -> dict | None:
-    if not isinstance(orgs, list):
+    if not isinstance(orgs, list) or not orgs:
         return None
     for o in orgs:
         caps = o.get("capabilities") or []
         if "chat" in caps:
             return o
-    return orgs[0] if orgs else None
+    return orgs[0]
 
 
 def _parse_iso(s: object) -> datetime | None:

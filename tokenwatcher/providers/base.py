@@ -44,3 +44,12 @@ class ProviderResult:
         if self.credits_balance:
             parts.append(self.credits_balance)
         return f"{self.name}: " + (", ".join(parts) if parts else "no data")
+
+
+def pending_result(name: str) -> ProviderResult:
+    """Placeholder result shown before an on-demand provider has been fetched."""
+    return ProviderResult(
+        name=name,
+        status=ProviderStatus.ERROR,
+        error="click Refresh to load",
+    )

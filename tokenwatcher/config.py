@@ -18,7 +18,6 @@ class ProviderConfig:
 @dataclass
 class Config:
     refresh_seconds: int = 300
-    browser: str = "auto"
     providers: dict[str, ProviderConfig] = field(
         default_factory=lambda: {
             "codex": ProviderConfig(enabled=True),
@@ -50,7 +49,6 @@ class Config:
             providers.setdefault(missing, ProviderConfig(enabled=True))
         return cls(
             refresh_seconds=int(raw.get("refresh_seconds", 300)),
-            browser=str(raw.get("browser", "auto")),
             providers=providers,
         )
 
@@ -60,7 +58,6 @@ class Config:
             json.dumps(
                 {
                     "refresh_seconds": self.refresh_seconds,
-                    "browser": self.browser,
                     "providers": {k: asdict(v) for k, v in self.providers.items()},
                 },
                 indent=2,

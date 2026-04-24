@@ -1,20 +1,19 @@
 # TokenWatcher
 
-A native Windows system-tray app that shows your **OpenAI Codex** and **Claude Code** usage/limits at a glance.
+A native Windows system-tray app that shows your **OpenAI Codex** and **Claude** usage/limits at a glance.
 
-Instead of scraping browser cookies (which modern Chrome/Edge lock down behind admin-only encryption), TokenWatcher reads the OAuth tokens the official CLIs already store on disk, then calls the same endpoints they do. No admin. No browser. No extra sign-in.
+- **Codex:** reads the OpenAI Codex CLI's OAuth token from `~/.codex/auth.json` and calls the same private endpoint the CLI uses (`chatgpt.com/backend-api/wham/usage`) for live 5h / 7d window utilization.
+- **Claude:** one-time sign-in through an embedded Microsoft Edge window establishes a claude.ai session; the cookie is DPAPI-encrypted and stored locally. TokenWatcher then hits claude.ai's real usage API for live window data. Falls back to historical activity (from Claude Code's `stats-cache.json`) if you haven't signed in yet.
 
-Inspired by [steipete/CodexBar](https://github.com/steipete/CodexBar) (macOS). This is a ground-up Windows reimplementation targeting only the two providers I actually use.
+Inspired by [steipete/CodexBar](https://github.com/steipete/CodexBar) (macOS), reimplemented from scratch for Windows to avoid WSL, browser-cookie scraping, and admin requirements.
 
 ## Requirements
 
-- Windows 10/11
-- Python 3.10+ (if running from source; a single-EXE build comes later)
-- You have used **either** of these at least once so their credentials exist on disk:
-  - **OpenAI Codex CLI** — creates `%USERPROFILE%\.codex\auth.json`
-  - **Claude Code CLI** — creates `%USERPROFILE%\.claude\.credentials.json`
-
-If neither file exists, TokenWatcher will tell you to run the relevant CLI once to sign in.
+- Windows 10/11 with Microsoft Edge installed (ships on Windows by default)
+- Python 3.10+ (for running from source; single-EXE packaging via PyInstaller planned)
+- At least one of these is useful for Codex / Claude display:
+  - **OpenAI Codex CLI** has been used at least once (creates `~/.codex/auth.json`)
+  - **Claude Code CLI** has been used at least once (for historical fallback); plus a claude.ai sign-in inside TokenWatcher (for live limits)
 
 ## Quick start
 
@@ -24,24 +23,23 @@ cd C:\Users\gehar\Documents\Github\TokenWatcher
 .\run.bat
 ```
 
-A tray icon will appear. Click it to see your Codex and Claude utilization.
+A tray icon appears. Click it to see Codex and Claude data. To enable live Claude window data:
 
-Want to see the fetch in the console?
+- Click the tray → **Sign in to Claude…**
+- Edge opens to `claude.ai/login` in app mode
+- Sign in once; TokenWatcher captures the session cookie and closes the window automatically
+- Next refresh shows live 5h / 7d utilization
 
-```powershell
-.\run-console.bat --once --verbose
-```
+## How Claude sign-in works
 
-## How it works
-
-1. **Codex.** Reads `%USERPROFILE%\.codex\auth.json`, extracts `tokens.access_token` (a JWT issued by `auth.openai.com`), decodes the embedded `id_token` claims for plan/email, and calls `https://chatgpt.com/backend-api/wham/usage` with `Authorization: Bearer <access_token>`. Returns the primary (5h) and secondary (7d) rate windows plus credits balance when applicable.
-2. **Claude.** Reads `%USERPROFILE%\.claude\.credentials.json`, extracts `claudeAiOauth.accessToken`, calls `GET https://claude.ai/api/organizations` to find the chat-capable org, then `GET /api/organizations/{id}/usage` to get 5-hour / 7-day utilization. Optionally reads `/overage_spend_limit` for Claude Extra budget.
-
-TokenWatcher **does not refresh tokens** — the CLIs do that on their own use. If a token is expired, TokenWatcher will say so and tell you to run the CLI once. That's it.
+- TokenWatcher launches `msedge.exe` with a **dedicated user-data-dir** under `~/.tokenwatcher/edge-profile/` (does NOT touch your main Edge profile) and `--remote-debugging-port=<random>`.
+- After you sign in, TokenWatcher reads the `sessionKey` cookie via Edge's DevTools Protocol (local WebSocket, never leaves your machine).
+- The cookie is DPAPI-encrypted at `~/.tokenwatcher/claude_session.dat` — only your current Windows user can decrypt it.
+- The cookie is only ever sent to `claude.ai` domains.
 
 ## Configuration
 
-`%USERPROFILE%\.tokenwatcher\config.json` (auto-created on first run):
+`%USERPROFILE%\.tokenwatcher\config.json`:
 
 ```json
 {
@@ -53,25 +51,20 @@ TokenWatcher **does not refresh tokens** — the CLIs do that on their own use. 
 }
 ```
 
-## What this does NOT do
+## CLI usage
 
-- Read your actual conversations, prompts, or history
-- Send your tokens anywhere other than OpenAI/Anthropic's own domains
-- Store or cache your credentials
+```powershell
+.\run-console.bat --once                 # fetch everything once, print, exit
+.\run-console.bat --once --json          # JSON output
+.\run-console.bat --claude-login         # launch Edge to sign into claude.ai
+```
 
-TokenWatcher only ever makes read-only calls to the same endpoints the CLIs make, using credentials you already granted to those CLIs.
+## What TokenWatcher does NOT do
 
-## Security notes
-
-- The credential files are plaintext JSON on disk, owned by your user. TokenWatcher reads them but never copies or writes them.
-- The only network traffic is `https://chatgpt.com/backend-api/wham/usage` and `https://claude.ai/api/...`.
-- There is no telemetry.
-
-## Roadmap
-
-- Package as a single `.exe` via PyInstaller, optional auto-start
-- Richer popup window (Tkinter) with progress bars instead of a text menu
-- Graceful handling of rate-window resets with a subtle tray badge
+- No browser-cookie scraping from your main Chrome/Edge profile (Chrome/Edge v127+ cookies are locked behind app-bound encryption that admin can't bypass — we avoid that whole class of problem).
+- No telemetry.
+- No storage of OpenAI / Anthropic credentials beyond the DPAPI-encrypted claude.ai session cookie.
+- No sending data anywhere except to `chatgpt.com` and `claude.ai` themselves.
 
 ## License
 

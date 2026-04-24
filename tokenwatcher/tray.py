@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 import os
 import subprocess
+import sys
 import threading
 import webbrowser
 from datetime import datetime, timezone
@@ -111,8 +112,8 @@ class TrayApp:
             else "Never updated"
         )
         items.append(MenuItem(last, None, enabled=False))
-        items.append(MenuItem("Refresh all (incl. Claude)", self._on_refresh_all))
-        items.append(MenuItem("Refresh periodic only", self._on_refresh_periodic))
+        items.append(MenuItem("Refresh now", self._on_refresh_all))
+        items.append(MenuItem("Sign in to Claude…", self._on_claude_login))
         items.append(
             MenuItem("Open config file", lambda _i, _mi: self._open_config())
         )
@@ -135,10 +136,18 @@ class TrayApp:
             target=self._do_refresh, args=(True,), daemon=True
         ).start()
 
-    def _on_refresh_periodic(self, _icon: pystray.Icon, _item: MenuItem) -> None:
-        threading.Thread(
-            target=self._do_refresh, args=(False,), daemon=True
-        ).start()
+    def _on_claude_login(self, _icon: pystray.Icon, _item: MenuItem) -> None:
+        # Spawn a separate process so the tray event loop stays responsive.
+        def spawn_and_refresh() -> None:
+            try:
+                subprocess.run(
+                    [sys.executable, "-m", "tokenwatcher", "--claude-login"],
+                    check=False,
+                )
+            finally:
+                self._do_refresh(include_on_demand=True)
+
+        threading.Thread(target=spawn_and_refresh, daemon=True).start()
 
     def _on_quit(self, icon: pystray.Icon, _item: MenuItem) -> None:
         self._stop.set()
@@ -168,6 +177,8 @@ def _header_line(r: ProviderResult) -> str:
 
 
 def _window_line(w) -> str:
+    if w.used_percent is None and w.resets_at is None:
+        return w.label
     pct = f"{w.used_percent:.0f}%" if w.used_percent is not None else "—"
     reset = ""
     if w.resets_at is not None:

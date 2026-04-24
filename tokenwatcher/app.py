@@ -58,6 +58,9 @@ def _print_results(results: list[ProviderResult], as_json: bool) -> None:
     for r in results:
         print(r.summary_line())
         for w in r.windows:
+            if w.used_percent is None and w.resets_at is None:
+                print(f"    {w.label}")
+                continue
             reset = w.resets_at.isoformat() if w.resets_at else "—"
             pct = f"{w.used_percent:.1f}%" if w.used_percent is not None else "—"
             print(f"    {w.label}: {pct}   resets_at={reset}")
@@ -73,6 +76,21 @@ def _result_to_dict(r: ProviderResult) -> dict:
     return d
 
 
+def _run_claude_login() -> int:
+    from .claude_session import save_session_key
+    from .edge_login import LoginError, run_login
+
+    print("Opening Edge to sign into claude.ai …")
+    try:
+        key = run_login()
+    except LoginError as e:
+        print(f"Login failed: {e}", file=sys.stderr)
+        return 1
+    save_session_key(key)
+    print("Signed in. Session cookie saved (DPAPI-encrypted).")
+    return 0
+
+
 def main(argv: Sequence[str]) -> int:
     parser = argparse.ArgumentParser(prog="tokenwatcher")
     parser.add_argument("--once", action="store_true", help="fetch once and print, no tray")
@@ -80,12 +98,21 @@ def main(argv: Sequence[str]) -> int:
     parser.add_argument(
         "--all",
         action="store_true",
-        help="with --once: also fetch on-demand providers (Claude)",
+        help="with --once: also fetch on-demand providers",
+    )
+    parser.add_argument(
+        "--claude-login",
+        action="store_true",
+        help="launch Edge to sign into claude.ai and store the session cookie, then exit",
     )
     parser.add_argument("-v", "--verbose", action="store_true")
     args = parser.parse_args(argv)
 
     _setup_logging(args.verbose)
+
+    if args.claude_login:
+        return _run_claude_login()
+
     cfg = Config.load()
     providers = _build_providers(cfg)
 

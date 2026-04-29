@@ -92,10 +92,53 @@ def run_login(timeout_seconds: int = 600) -> str:
             )
         return session_key
     finally:
+        _close_edge(port, proc)
+
+
+def _close_edge(port: int, proc: subprocess.Popen) -> None:
+    """Try Browser.close over CDP, then process-tree kill as a safety net.
+
+    `proc.terminate()` alone isn't enough on Windows — Edge launches its real
+    browser process tree from a tiny launcher that exits immediately, so the
+    handle we hold doesn't represent the visible window.
+    """
+    try:
+        version = requests.get(
+            f"http://127.0.0.1:{port}/json/version", timeout=2
+        ).json()
+        browser_ws = version.get("webSocketDebuggerUrl")
+    except (requests.RequestException, ValueError):
+        browser_ws = None
+
+    if browser_ws:
         try:
-            proc.terminate()
-        except OSError:
-            pass
+            ws = websocket.create_connection(browser_ws, timeout=3)
+            try:
+                ws.send(json.dumps({"id": 99, "method": "Browser.close"}))
+            finally:
+                try:
+                    ws.close()
+                except Exception:  # noqa: BLE001
+                    pass
+        except Exception as e:  # noqa: BLE001
+            log.debug("Browser.close via CDP failed: %s", e)
+
+    # Give Edge a moment to shut down cleanly.
+    try:
+        proc.wait(timeout=3)
+        return
+    except subprocess.TimeoutExpired:
+        pass
+
+    # Fallback: force-kill the process tree.
+    try:
+        subprocess.run(
+            ["taskkill", "/F", "/T", "/PID", str(proc.pid)],
+            capture_output=True,
+            timeout=5,
+        )
+    except Exception:  # noqa: BLE001
+        pass
 
 
 def _wait_for_debug_port(port: int, timeout: int) -> None:

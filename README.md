@@ -6,12 +6,15 @@
 
 **A native Windows system-tray app that shows your OpenAI Codex and Claude usage limits at a glance.**
 
+*The Windows alternative to [CodexBar](https://github.com/steipete/CodexBar) — same idea (live OpenAI Codex + Claude rate-limit windows in your menu bar), built from scratch for Windows users who want the same experience without WSL, browser-cookie scraping, or admin tricks.*
+
 [![Release](https://img.shields.io/github/v/release/gehariharan/Tokenwatcher?include_prereleases&label=download)](https://github.com/gehariharan/Tokenwatcher/releases)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![Platform](https://img.shields.io/badge/platform-Windows%2010%20%7C%2011-0078D6)](https://github.com/gehariharan/Tokenwatcher/releases)
 
 </div>
 
-> Inspired by [**steipete/CodexBar**](https://github.com/steipete/CodexBar) on macOS — this is a Windows-specific Electron implementation, rebuilt from scratch to avoid WSL, browser-cookie scraping, and admin requirements.
+> **CodexBar for Windows** — Inspired by [steipete/CodexBar](https://github.com/steipete/CodexBar) on macOS. This is a Windows-specific Electron implementation, rebuilt from scratch to avoid WSL, browser-cookie scraping, and admin requirements.
 
 ---
 
@@ -134,6 +137,16 @@ TokenWatcher/
 └── .github/workflows/
     └── release.yml          # Tag push → installer release
 ```
+
+## Related projects
+
+- [**steipete/CodexBar**](https://github.com/steipete/CodexBar) — the macOS original
+- [**openai/codex**](https://github.com/openai/codex) — the Codex CLI itself
+- [**anthropics/claude-code**](https://github.com/anthropics/claude-code) — Claude Code CLI
+
+## Keywords
+
+CodexBar for Windows · CodexBar Windows alternative · Codex usage tracker · Claude usage tracker · OpenAI rate limit monitor · ChatGPT rate limit · Claude rate limit · system tray usage monitor · Windows menu-bar app for Codex · Codex 5h window · Claude 5h window
 
 ## License
 

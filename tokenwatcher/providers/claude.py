@@ -18,7 +18,13 @@ import os
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 
-import requests
+# curl_cffi impersonates Chrome's TLS + HTTP/2 fingerprint so Cloudflare on
+# claude.ai accepts our requests. Plain `requests` is JA3-fingerprinted as a
+# Python bot and gets stuck on the "Just a moment..." interstitial regardless
+# of which cookies it sends.
+from curl_cffi import requests as cffi_requests
+from curl_cffi.requests.exceptions import HTTPError as CurlHTTPError
+from curl_cffi.requests.exceptions import RequestException as CurlRequestException
 
 from ..auth import AuthError, AuthMissing, load_claude_auth
 from ..claude_session import load_session_key
@@ -63,26 +69,33 @@ class ClaudeProvider:
     def _fetch_live(
         self, session_key: str, plan: str | None, tier: str | None
     ) -> ProviderResult | None:
-        headers = {
-            "Cookie": f"sessionKey={session_key}",
-            "User-Agent": USER_AGENT,
-            "Accept": "application/json",
-        }
-        session = requests.Session()
-        session.headers.update(headers)
+        cookies = {"sessionKey": session_key}
+        headers = {"Accept": "application/json"}
+
+        def get(url: str) -> dict:
+            r = cffi_requests.get(
+                url,
+                headers=headers,
+                cookies=cookies,
+                impersonate="chrome131",
+                timeout=self.timeout,
+            )
+            r.raise_for_status()
+            return r.json()
 
         try:
-            orgs = self._get(session, ORGS_URL)
-        except requests.HTTPError as e:
-            if e.response.status_code in (401, 403):
+            orgs = get(ORGS_URL)
+        except CurlHTTPError as e:
+            code = _status_of(e)
+            if code in (401, 403):
                 return None  # signal fallback
             return ProviderResult(
                 name=self.name,
                 status=ProviderStatus.ERROR,
                 plan=_fmt_plan(plan, tier),
-                error=f"claude.ai HTTP {e.response.status_code}",
+                error=f"claude.ai HTTP {code}",
             )
-        except requests.RequestException as e:
+        except CurlRequestException as e:
             return ProviderResult(
                 name=self.name,
                 status=ProviderStatus.ERROR,
@@ -103,24 +116,25 @@ class ClaudeProvider:
 
         email: str | None = None
         try:
-            acct = self._get(session, ACCOUNT_URL)
+            acct = get(ACCOUNT_URL)
             email = acct.get("email_address")
-        except requests.RequestException:
+        except CurlRequestException:
             pass
 
         try:
-            usage = self._get(session, f"{BASE}/organizations/{org_id}/usage")
-        except requests.HTTPError as e:
-            if e.response.status_code in (401, 403):
+            usage = get(f"{BASE}/organizations/{org_id}/usage")
+        except CurlHTTPError as e:
+            code = _status_of(e)
+            if code in (401, 403):
                 return None
             return ProviderResult(
                 name=self.name,
                 status=ProviderStatus.ERROR,
                 plan=_fmt_plan(plan, tier),
                 account_label=email,
-                error=f"/usage HTTP {e.response.status_code}",
+                error=f"/usage HTTP {code}",
             )
-        except requests.RequestException as e:
+        except CurlRequestException as e:
             return ProviderResult(
                 name=self.name,
                 status=ProviderStatus.ERROR,
@@ -131,18 +145,11 @@ class ClaudeProvider:
 
         spend: dict | None = None
         try:
-            spend = self._get(
-                session, f"{BASE}/organizations/{org_id}/overage_spend_limit"
-            )
-        except requests.RequestException:
+            spend = get(f"{BASE}/organizations/{org_id}/overage_spend_limit")
+        except CurlRequestException:
             pass
 
         return _parse_live(usage, spend, plan, tier, email or org_name)
-
-    def _get(self, session: requests.Session, url: str) -> dict:
-        r = session.get(url, timeout=self.timeout)
-        r.raise_for_status()
-        return r.json()
 
     def _fetch_historical_fallback(
         self, plan: str | None, tier: str | None, has_cookie: bool
@@ -173,6 +180,11 @@ class ClaudeProvider:
             result.error = "live fetch failed, showing local activity — try Sign in to Claude"
             result.status = ProviderStatus.NOT_LOGGED_IN
         return result
+
+
+def _status_of(e: Exception) -> int | None:
+    resp = getattr(e, "response", None)
+    return getattr(resp, "status_code", None) if resp is not None else None
 
 
 # ---- parsing helpers --------------------------------------------------------

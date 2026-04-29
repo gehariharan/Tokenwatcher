@@ -8,8 +8,7 @@ decrypt it, and neither can this user from a different box.
 from __future__ import annotations
 
 import ctypes
-from ctypes import byref, c_char_p, wintypes
-from pathlib import Path
+from ctypes import POINTER, byref, c_char, c_void_p, wintypes
 
 from .config import CONFIG_DIR
 
@@ -17,35 +16,78 @@ SESSION_PATH = CONFIG_DIR / "claude_session.dat"
 
 
 class _DataBlob(ctypes.Structure):
-    _fields_ = [("cbData", wintypes.DWORD), ("pbData", c_char_p)]
+    _fields_ = [("cbData", wintypes.DWORD), ("pbData", POINTER(c_char))]
+
+
+# Declaring argtypes / restype is critical on 64-bit Windows. Without them,
+# ctypes assumes int-sized arguments and the kernel pointer args get
+# truncated, causing access violations.
+_crypt32 = ctypes.windll.crypt32
+_kernel32 = ctypes.windll.kernel32
+
+_crypt32.CryptProtectData.argtypes = [
+    POINTER(_DataBlob),    # pDataIn
+    wintypes.LPCWSTR,      # szDataDescr
+    POINTER(_DataBlob),    # pOptionalEntropy
+    c_void_p,              # pvReserved
+    c_void_p,              # pPromptStruct
+    wintypes.DWORD,        # dwFlags
+    POINTER(_DataBlob),    # pDataOut
+]
+_crypt32.CryptProtectData.restype = wintypes.BOOL
+
+_crypt32.CryptUnprotectData.argtypes = [
+    POINTER(_DataBlob),
+    POINTER(wintypes.LPWSTR),  # ppszDataDescr (not used; pass None)
+    POINTER(_DataBlob),
+    c_void_p,
+    c_void_p,
+    wintypes.DWORD,
+    POINTER(_DataBlob),
+]
+_crypt32.CryptUnprotectData.restype = wintypes.BOOL
+
+_kernel32.LocalFree.argtypes = [c_void_p]
+_kernel32.LocalFree.restype = c_void_p
+
+
+def _make_input_blob(data: bytes) -> _DataBlob:
+    buf = ctypes.create_string_buffer(data, len(data))
+    blob = _DataBlob()
+    blob.cbData = len(data)
+    blob.pbData = ctypes.cast(buf, POINTER(c_char))
+    blob._buf = buf  # type: ignore[attr-defined]  # keep buffer alive
+    return blob
+
+
+def _read_output_blob(blob: _DataBlob) -> bytes:
+    if not blob.pbData:
+        return b""
+    out = ctypes.string_at(blob.pbData, blob.cbData)
+    _kernel32.LocalFree(blob.pbData)
+    return out
 
 
 def _dpapi_protect(data: bytes) -> bytes:
-    in_blob = _DataBlob(len(data), ctypes.cast(ctypes.c_char_p(data), c_char_p))
+    in_blob = _make_input_blob(data)
     out_blob = _DataBlob()
-    ok = ctypes.windll.crypt32.CryptProtectData(
+    ok = _crypt32.CryptProtectData(
         byref(in_blob), None, None, None, None, 0, byref(out_blob)
     )
     if not ok:
-        raise OSError("CryptProtectData failed")
-    try:
-        return ctypes.string_at(out_blob.pbData, out_blob.cbData)
-    finally:
-        ctypes.windll.kernel32.LocalFree(out_blob.pbData)
+        raise OSError(f"CryptProtectData failed (GetLastError={ctypes.GetLastError()})")
+    return _read_output_blob(out_blob)
 
 
 def _dpapi_unprotect(data: bytes) -> bytes:
-    in_blob = _DataBlob(len(data), ctypes.cast(ctypes.c_char_p(data), c_char_p))
+    in_blob = _make_input_blob(data)
     out_blob = _DataBlob()
-    ok = ctypes.windll.crypt32.CryptUnprotectData(
+    ok = _crypt32.CryptUnprotectData(
         byref(in_blob), None, None, None, None, 0, byref(out_blob)
     )
     if not ok:
-        raise OSError("CryptUnprotectData failed")
-    try:
-        return ctypes.string_at(out_blob.pbData, out_blob.cbData)
-    finally:
-        ctypes.windll.kernel32.LocalFree(out_blob.pbData)
+        raise OSError(f"CryptUnprotectData failed (GetLastError={ctypes.GetLastError()})")
+    return _read_output_blob(out_blob)
 
 
 def save_session_key(value: str) -> None:

@@ -11,6 +11,8 @@
 
 </div>
 
+> Inspired by [**steipete/CodexBar**](https://github.com/steipete/CodexBar) on macOS — this is a Windows-specific Electron implementation, rebuilt from scratch to avoid WSL, browser-cookie scraping, and admin requirements.
+
 ---
 
 ## What it shows
@@ -135,4 +137,4 @@ TokenWatcher/
 
 ## License
 
-[MIT](LICENSE) — Inspired by [steipete/CodexBar](https://github.com/steipete/CodexBar) on macOS.
+[MIT](LICENSE)

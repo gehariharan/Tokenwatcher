@@ -73,6 +73,9 @@ def run_login(timeout_seconds: int = 600) -> str:
     args = [
         edge,
         f"--remote-debugging-port={port}",
+        # Chromium ≥ rejects CDP WebSocket upgrades whose Origin header isn't
+        # explicitly allowlisted; without this we get 403s on every request.
+        f"--remote-allow-origins=http://127.0.0.1:{port}",
         f"--user-data-dir={EDGE_PROFILE_DIR}",
         "--no-first-run",
         "--no-default-browser-check",

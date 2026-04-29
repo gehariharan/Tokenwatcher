@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>TokenWatcher</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+  <!-- ── Main view ── -->
+  <div id="main-view">
+    <header class="app-header">
+      <span class="app-name">TokenWatcher</span>
+      <button id="settings-btn" class="icon-btn" title="Settings">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="12" cy="12" r="3"/>
+          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+        </svg>
+      </button>
+    </header>
+
+    <div id="providers">
+
+      <!-- Codex card -->
+      <div id="codex-card" class="card">
+        <div class="card-header">
+          <div class="provider-label">
+            <span class="dot codex-dot"></span>
+            <span class="provider-name">OpenAI Codex</span>
+          </div>
+          <span class="status-badge" id="codex-status-badge"></span>
+        </div>
+        <div class="card-body" id="codex-body">
+          <p class="loading-text">Loading…</p>
+        </div>
+      </div>
+
+      <!-- Claude card -->
+      <div id="claude-card" class="card">
+        <div class="card-header">
+          <div class="provider-label">
+            <span class="dot claude-dot"></span>
+            <span class="provider-name">Claude</span>
+          </div>
+          <span class="status-badge" id="claude-status-badge"></span>
+        </div>
+        <div class="card-body" id="claude-body">
+          <p class="loading-text">Loading…</p>
+        </div>
+      </div>
+
+    </div>
+
+    <footer class="app-footer">
+      <span id="last-updated" class="muted-text">—</span>
+      <button id="refresh-btn" class="text-btn">↺ Refresh</button>
+    </footer>
+  </div>
+
+  <!-- ── Settings view ── -->
+  <div id="settings-view" class="hidden">
+    <header class="app-header">
+      <button id="back-btn" class="icon-btn back-icon-btn" title="Back">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+          <polyline points="15 18 9 12 15 6"/>
+        </svg>
+      </button>
+      <span class="app-name">Settings</span>
+      <span style="width:28px"></span>
+    </header>
+
+    <div class="settings-body">
+      <div class="setting-row" id="codex-setting-row">
+        <div class="setting-info">
+          <div class="setting-label">Watch OpenAI Codex</div>
+          <div class="setting-desc">Shows 5 h / 7 d usage limits</div>
+        </div>
+        <label class="toggle-switch">
+          <input type="checkbox" id="watch-codex" />
+          <span class="toggle-track"><span class="toggle-thumb"></span></span>
+        </label>
+      </div>
+
+      <div class="setting-row" id="claude-setting-row">
+        <div class="setting-info">
+          <div class="setting-label">Watch Claude</div>
+          <div class="setting-desc">Shows rate-limit windows (requires sign-in to claude.ai)</div>
+        </div>
+        <label class="toggle-switch">
+          <input type="checkbox" id="watch-claude" />
+          <span class="toggle-track"><span class="toggle-thumb"></span></span>
+        </label>
+      </div>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>

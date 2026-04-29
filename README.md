@@ -1,71 +1,138 @@
+<div align="center">
+
+<img src="assets/icon.png" alt="TokenWatcher" width="128" height="128" />
+
 # TokenWatcher
 
-A native Windows system-tray app that shows your **OpenAI Codex** and **Claude** usage/limits at a glance.
+**A native Windows system-tray app that shows your OpenAI Codex and Claude usage limits at a glance.**
 
-- **Codex:** reads the OpenAI Codex CLI's OAuth token from `~/.codex/auth.json` and calls the same private endpoint the CLI uses (`chatgpt.com/backend-api/wham/usage`) for live 5h / 7d window utilization.
-- **Claude:** one-time sign-in through an embedded Microsoft Edge window establishes a claude.ai session; the cookie is DPAPI-encrypted and stored locally. TokenWatcher then hits claude.ai's real usage API for live window data. Falls back to historical activity (from Claude Code's `stats-cache.json`) if you haven't signed in yet.
+[![Release](https://img.shields.io/github/v/release/gehariharan/Tokenwatcher?include_prereleases&label=download)](https://github.com/gehariharan/Tokenwatcher/releases)
+[![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
-Inspired by [steipete/CodexBar](https://github.com/steipete/CodexBar) (macOS), reimplemented from scratch for Windows to avoid WSL, browser-cookie scraping, and admin requirements.
+</div>
 
-## Requirements
+---
 
-- Windows 10/11 with Microsoft Edge installed (ships on Windows by default)
-- Python 3.10+ (for running from source; single-EXE packaging via PyInstaller planned)
-- At least one of these is useful for Codex / Claude display:
-  - **OpenAI Codex CLI** has been used at least once (creates `~/.codex/auth.json`)
-  - **Claude Code CLI** has been used at least once (for historical fallback); plus a claude.ai sign-in inside TokenWatcher (for live limits)
+## What it shows
 
-## Quick start
+- **OpenAI Codex** — live 5h / 7d window utilization, plan, account email
+- **Claude** — live 5h / 7d / Sonnet / Opus utilization, plan tier, account email
 
-```powershell
-cd C:\Users\gehar\Documents\Github\TokenWatcher
-.\install.bat
-.\run.bat
-```
+Hover the tray icon, and the panel slides up. No clicks, no extra windows.
 
-A tray icon appears. Click it to see Codex and Claude data. To enable live Claude window data:
+## Install (end-users)
 
-- Click the tray → **Sign in to Claude…**
-- Edge opens to `claude.ai/login` in app mode
-- Sign in once; TokenWatcher captures the session cookie and closes the window automatically
-- Next refresh shows live 5h / 7d utilization
+1. Download `TokenWatcher-Setup-x.y.z.exe` from the **[Releases page](https://github.com/gehariharan/Tokenwatcher/releases)**
+2. Run it. The installer adds TokenWatcher to your Start menu and (optionally) the desktop
+3. Pin the tray icon: click the `^` chevron near the clock and **drag the TokenWatcher icon onto the taskbar**
 
-## How Claude sign-in works
-
-- TokenWatcher launches `msedge.exe` with a **dedicated user-data-dir** under `~/.tokenwatcher/edge-profile/` (does NOT touch your main Edge profile) and `--remote-debugging-port=<random>`.
-- After you sign in, TokenWatcher reads the `sessionKey` cookie via Edge's DevTools Protocol (local WebSocket, never leaves your machine).
-- The cookie is DPAPI-encrypted at `~/.tokenwatcher/claude_session.dat` — only your current Windows user can decrypt it.
-- The cookie is only ever sent to `claude.ai` domains.
+> First-launch SmartScreen note — this app isn't yet code-signed, so Windows will show *"Windows protected your PC"* on first install. Click **More info → Run anyway**.
 
 ## Configuration
 
-`%USERPROFILE%\.tokenwatcher\config.json`:
+Click the gear icon ⚙ in the panel header to:
+- Toggle **Watch OpenAI Codex** — disable if you don't use Codex
+- Toggle **Watch Claude** — disable to skip the Edge sign-in flow entirely
 
-```json
-{
-  "refresh_seconds": 300,
-  "providers": {
-    "codex":  { "enabled": true },
-    "claude": { "enabled": true }
-  }
-}
-```
+Settings live at `%APPDATA%\TokenWatcher\settings.json`.
 
-## CLI usage
+## How it works
+
+- **Codex** — reads the OpenAI Codex CLI's OAuth token from `~/.codex/auth.json` and calls the same private endpoint the CLI uses (`chatgpt.com/backend-api/wham/usage`). No additional sign-in needed if you already use the `codex` CLI.
+- **Claude** — a one-time sign-in launches Microsoft Edge against `claude.ai/login` with a dedicated user-data-dir. After you sign in, TokenWatcher reads the `sessionKey` cookie via Edge's DevTools Protocol, encrypts it with Windows DPAPI, and stores it locally. Live usage data is then fetched directly from `claude.ai`'s usage API.
+
+| Component | Purpose |
+|---|---|
+| **Electron** shell | System tray, side-panel BrowserWindow, IPC routing |
+| **Pure Node** Codex provider | Reads `~/.codex/auth.json` + HTTPS GET to `chatgpt.com` |
+| **Python sidecar** Claude provider | Edge CDP login flow + DPAPI session storage + `curl_cffi` (defeats Cloudflare's TLS fingerprinting) |
+
+### Why a Python sidecar?
+
+`claude.ai` sits behind Cloudflare with TLS / JA3 fingerprinting. Plain Node `fetch` (and Python `requests`) get blocked with *"Just a moment…"*. Python's [`curl_cffi`](https://github.com/yifeikong/curl_cffi) impersonates Chrome's TLS handshake and gets through cleanly. The sidecar is shipped as a single PyInstaller `.exe` inside the installer — users never see Python.
+
+## Privacy & security
+
+- TokenWatcher only ever talks to `chatgpt.com` and `claude.ai`. No third-party servers, no telemetry.
+- The Claude sign-in launches Edge with a **dedicated profile directory** (`~/.tokenwatcher/edge-profile/`) — your normal Edge profile is never touched.
+- The captured `sessionKey` cookie is encrypted with [Windows DPAPI](https://learn.microsoft.com/en-us/dotnet/standard/security/how-to-use-data-protection) before being written to disk. Only your Windows user account can decrypt it.
+- Source code is open and auditable.
+
+## Build from source
+
+### Prerequisites
+- Windows 10 / 11
+- [Node.js](https://nodejs.org/) 18+
+- [Python](https://www.python.org/) 3.10+ (for the Claude sidecar; not needed at runtime — only at build time)
+- Microsoft Edge (preinstalled on Windows)
+
+### Setup
 
 ```powershell
-.\run-console.bat --once                 # fetch everything once, print, exit
-.\run-console.bat --once --json          # JSON output
-.\run-console.bat --claude-login         # launch Edge to sign into claude.ai
+git clone git@github.com:gehariharan/Tokenwatcher.git
+cd Tokenwatcher
+
+# Install Electron + dev deps
+npm install
+
+# Set up the Python venv for the sidecar
+python -m venv .venv
+.\.venv\Scripts\python.exe -m pip install -r sidecar\requirements.txt
+
+# Run in dev mode
+npm start
 ```
 
-## What TokenWatcher does NOT do
+In dev mode the app spawns the sidecar via the venv's Python — no need to compile it. To exit, right-click the tray icon → **Quit**.
 
-- No browser-cookie scraping from your main Chrome/Edge profile (Chrome/Edge v127+ cookies are locked behind app-bound encryption that admin can't bypass — we avoid that whole class of problem).
-- No telemetry.
-- No storage of OpenAI / Anthropic credentials beyond the DPAPI-encrypted claude.ai session cookie.
-- No sending data anywhere except to `chatgpt.com` and `claude.ai` themselves.
+### Build a Windows installer
+
+```powershell
+# Bundle the Python sidecar into resources/claude_fetch.exe
+.\build-sidecar.bat
+
+# Build the NSIS installer (output: dist/TokenWatcher Setup x.y.z.exe)
+npm run build
+```
+
+### Regenerate icons
+
+If you change the source `assets/icon-source.png`, regenerate the multi-resolution outputs:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\gen-icons.py
+```
+
+### Cut a release
+
+Push a tag — the [GitHub Actions release workflow](.github/workflows/release.yml) builds the sidecar with PyInstaller, builds the NSIS installer, and uploads it to a draft GitHub Release automatically:
+
+```powershell
+git tag v0.1.0
+git push origin v0.1.0
+```
+
+## Project layout
+
+```
+TokenWatcher/
+├── src/
+│   ├── main.js              # Electron main: tray, panel, IPC
+│   ├── preload.js           # Context bridge
+│   └── renderer/            # Side-panel UI (HTML/CSS/JS)
+├── src-node/
+│   ├── codex.js             # Pure-Node Codex provider
+│   ├── claude.js            # Sidecar invoker
+│   └── settings.js          # Settings persistence
+├── sidecar/
+│   └── claude_fetch.py      # Self-contained: Edge CDP + DPAPI + curl_cffi
+├── assets/                  # Icons (PNG / ICO)
+├── scripts/
+│   └── gen-icons.py         # Regenerate icons from source PNG
+└── .github/workflows/
+    └── release.yml          # Tag push → installer release
+```
 
 ## License
 
-MIT
+[MIT](LICENSE) — Inspired by [steipete/CodexBar](https://github.com/steipete/CodexBar) on macOS.

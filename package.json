@@ -1,0 +1,71 @@
+{
+  "name": "tokenwatcher",
+  "version": "0.1.0",
+  "description": "System tray app showing OpenAI Codex and Claude usage limits",
+  "main": "src/main.js",
+  "author": "TokenWatcher Contributors",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/gehariharan/Tokenwatcher.git"
+  },
+  "homepage": "https://github.com/gehariharan/Tokenwatcher",
+  "scripts": {
+    "start": "electron .",
+    "build": "electron-builder --win",
+    "build-sidecar": "build-sidecar.bat"
+  },
+  "build": {
+    "appId": "com.tokenwatcher.app",
+    "productName": "TokenWatcher",
+    "directories": {
+      "output": "dist"
+    },
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": ["x64"]
+        }
+      ],
+      "icon": "assets/icon.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": false,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "runAfterFinish": true,
+      "installerIcon": "assets/icon.ico",
+      "uninstallerIcon": "assets/icon.ico",
+      "installerHeaderIcon": "assets/icon.ico"
+    },
+    "extraResources": [
+      {
+        "from": "resources/claude_fetch.exe",
+        "to": "claude_fetch.exe"
+      },
+      {
+        "from": "assets",
+        "to": "assets",
+        "filter": ["icon.ico", "icon.png", "icon-tray.png"]
+      }
+    ],
+    "files": [
+      "src/**/*",
+      "src-node/**/*",
+      "node_modules/**/*",
+      "package.json"
+    ],
+    "publish": {
+      "provider": "github",
+      "owner": "gehariharan",
+      "repo": "Tokenwatcher",
+      "releaseType": "release"
+    }
+  },
+  "devDependencies": {
+    "electron": "^31.3.0",
+    "electron-builder": "^24.13.3"
+  }
+}

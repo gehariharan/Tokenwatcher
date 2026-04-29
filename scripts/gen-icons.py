@@ -38,13 +38,14 @@ def main() -> None:
     tray.save(ROOT / "assets" / "icon-tray.png", optimize=True)
     print("wrote assets/icon-tray.png  (32x32)")
 
-    # Multi-resolution ICO for Windows installer + window
-    sized = [img.resize((s, s), Image.LANCZOS) for s in ICO_SIZES]
-    sized[0].save(
+    # Multi-resolution ICO. Pillow generates each requested frame from the
+    # base image, so the base must be at least as large as the largest size.
+    # electron-builder requires a 256x256 frame; we provide one explicitly.
+    base = img.resize((max(ICO_SIZES), max(ICO_SIZES)), Image.LANCZOS)
+    base.save(
         ROOT / "assets" / "icon.ico",
         format="ICO",
         sizes=[(s, s) for s in ICO_SIZES],
-        append_images=sized[1:],
     )
     print(f"wrote assets/icon.ico   sizes={ICO_SIZES}")
 

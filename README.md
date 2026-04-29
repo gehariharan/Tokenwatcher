@@ -27,11 +27,21 @@ Hover the tray icon, and the panel slides up. No clicks, no extra windows.
 
 ## Install (end-users)
 
-1. Download `TokenWatcher-Setup-x.y.z.exe` from the **[Releases page](https://github.com/gehariharan/Tokenwatcher/releases)**
-2. Run it. The installer adds TokenWatcher to your Start menu and (optionally) the desktop
-3. Pin the tray icon: click the `^` chevron near the clock and **drag the TokenWatcher icon onto the taskbar**
+Three ways:
 
-> First-launch SmartScreen note — this app isn't yet code-signed, so Windows will show *"Windows protected your PC"* on first install. Click **More info → Run anyway**.
+### winget (recommended — no SmartScreen warnings)
+```powershell
+winget install gehariharan.TokenWatcher
+```
+*(Available once the [winget submission](docs/winget-submission.md) is merged.)*
+
+### Microsoft Store
+[**Get it from Microsoft**](https://apps.microsoft.com) *(coming soon — see [submission notes](docs/microsoft-store-submission.md))*
+
+### Direct download
+1. Grab `TokenWatcher-Setup-x.y.z.exe` from the **[Releases page](https://github.com/gehariharan/Tokenwatcher/releases)**
+2. Run it (Windows SmartScreen will warn — click **More info → Run anyway**; it's unsigned but open-source)
+3. Pin the tray icon: click the `^` near the clock and **drag the TokenWatcher icon onto the taskbar**
 
 ## Configuration
 

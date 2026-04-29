@@ -15,7 +15,8 @@ dist/
 out/
 
 # PyInstaller / sidecar build artifacts
-build/
+build/*
+!build/appx/
 resources/claude_fetch.exe
 
 # Editors

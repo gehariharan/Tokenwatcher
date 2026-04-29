@@ -12,7 +12,9 @@
   "homepage": "https://github.com/gehariharan/Tokenwatcher",
   "scripts": {
     "start": "electron .",
-    "build": "electron-builder --win",
+    "build": "electron-builder --win nsis",
+    "build:msix": "electron-builder --win appx",
+    "build:all": "electron-builder --win nsis appx",
     "build-sidecar": "build-sidecar.bat"
   },
   "build": {
@@ -29,6 +31,15 @@
         }
       ],
       "icon": "assets/icon.ico"
+    },
+    "appx": {
+      "applicationId": "TokenWatcher",
+      "displayName": "TokenWatcher",
+      "identityName": "REPLACE_WITH_PARTNER_CENTER_IDENTITY",
+      "publisher": "CN=REPLACE_WITH_PARTNER_CENTER_PUBLISHER",
+      "publisherDisplayName": "REPLACE_WITH_PARTNER_CENTER_DISPLAY_NAME",
+      "backgroundColor": "transparent",
+      "languages": ["en-US"]
     },
     "nsis": {
       "oneClick": false,

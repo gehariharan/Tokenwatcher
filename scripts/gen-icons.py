@@ -1,9 +1,10 @@
 """Generate TokenWatcher icon assets from assets/icon-source.png.
 
 Outputs:
-  assets/icon.png       512x512 (general / window icon)
-  assets/icon.ico       multi-resolution (16, 24, 32, 48, 64, 128, 256) for installer + tray
-  assets/icon-tray.png  32x32 (explicit fallback for the tray)
+  assets/icon.png         512x512 (general / window icon)
+  assets/icon.ico         multi-resolution (16, 24, 32, 48, 64, 128, 256)
+  assets/icon-tray.png    32x32 (explicit fallback for the tray)
+  build/appx/*.png        Microsoft Store (MSIX/AppX) tile assets
 """
 from __future__ import annotations
 
@@ -48,6 +49,35 @@ def main() -> None:
         sizes=[(s, s) for s in ICO_SIZES],
     )
     print(f"wrote assets/icon.ico   sizes={ICO_SIZES}")
+
+    # Microsoft Store / MSIX tile assets. electron-builder reads these from
+    # build/appx/ and embeds them into the AppX manifest.
+    appx_dir = ROOT / "build" / "appx"
+    appx_dir.mkdir(parents=True, exist_ok=True)
+
+    # Required tile / logo sizes per the MSIX spec. The Square150x150Logo and
+    # Square44x44Logo are mandatory; the rest improve Store presentation.
+    appx_sizes = {
+        "StoreLogo.png":          (50, 50),
+        "Square44x44Logo.png":    (44, 44),
+        "Square71x71Logo.png":    (71, 71),
+        "Square150x150Logo.png":  (150, 150),
+        "Square310x310Logo.png":  (310, 310),
+        "Wide310x150Logo.png":    (310, 150),  # wide tile: pad transparent
+        "SplashScreen.png":       (620, 300),  # splash: pad transparent
+    }
+
+    for name, (w, h) in appx_sizes.items():
+        if w == h:
+            tile = img.resize((w, h), Image.LANCZOS)
+        else:
+            # Wide / splash: paste square icon centered on a transparent canvas.
+            side = min(w, h)
+            scaled = img.resize((side, side), Image.LANCZOS)
+            tile = Image.new("RGBA", (w, h), (0, 0, 0, 0))
+            tile.paste(scaled, ((w - side) // 2, (h - side) // 2), scaled)
+        tile.save(appx_dir / name, optimize=True)
+    print(f"wrote build/appx/  ({len(appx_sizes)} tile assets for Microsoft Store)")
 
 
 if __name__ == "__main__":

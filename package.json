@@ -1,6 +1,6 @@
 {
   "name": "tokenwatcher",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "System tray app showing OpenAI Codex and Claude usage limits",
   "main": "src/main.js",
   "author": "TokenWatcher Contributors",
@@ -42,8 +42,9 @@
       "languages": ["en-US"]
     },
     "nsis": {
-      "oneClick": false,
-      "allowToChangeInstallationDirectory": false,
+      "oneClick": true,
+      "perMachine": false,
+      "allowElevation": false,
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
       "runAfterFinish": true,

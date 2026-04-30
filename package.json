@@ -1,6 +1,6 @@
 {
   "name": "tokenwatcher",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "System tray app showing OpenAI Codex and Claude usage limits",
   "main": "src/main.js",
   "author": "TokenWatcher Contributors",
@@ -27,7 +27,9 @@
       "target": [
         {
           "target": "nsis",
-          "arch": ["x64"]
+          "arch": [
+            "x64"
+          ]
         }
       ],
       "icon": "assets/icon.ico"
@@ -39,7 +41,9 @@
       "publisher": "CN=REPLACE_WITH_PARTNER_CENTER_PUBLISHER",
       "publisherDisplayName": "REPLACE_WITH_PARTNER_CENTER_DISPLAY_NAME",
       "backgroundColor": "transparent",
-      "languages": ["en-US"]
+      "languages": [
+        "en-US"
+      ]
     },
     "nsis": {
       "oneClick": true,
@@ -60,7 +64,11 @@
       {
         "from": "assets",
         "to": "assets",
-        "filter": ["icon.ico", "icon.png", "icon-tray.png"]
+        "filter": [
+          "icon.ico",
+          "icon.png",
+          "icon-tray.png"
+        ]
       }
     ],
     "files": [
@@ -79,5 +87,8 @@
   "devDependencies": {
     "electron": "^31.3.0",
     "electron-builder": "^24.13.3"
+  },
+  "dependencies": {
+    "electron-updater": "^6.8.3"
   }
 }

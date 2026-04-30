@@ -103,8 +103,12 @@ function buildOkBody(result) {
 
   if (result.plan || result.account_label) {
     html += '<div class="plan-row">';
-    if (result.plan) html += `<span class="plan-tag">${esc(result.plan)}</span>`;
-    if (result.account_label) html += `<span class="account-label">${esc(result.account_label)}</span>`;
+    if (result.plan) {
+      html += `<span class="plan-tag" title="${esc(result.plan)}">${esc(result.plan)}</span>`;
+    }
+    if (result.account_label) {
+      html += `<span class="account-label" title="${esc(result.account_label)}">${esc(result.account_label)}</span>`;
+    }
     html += '</div>';
   }
 
@@ -148,10 +152,18 @@ function buildResetTime(isoString) {
   const d = new Date(isoString);
   const diff = d - Date.now();
   if (diff <= 0) return '';
+
+  const hours = Math.floor(diff / 3600000);
+
+  // For windows >24h away, "resets in 145h 18m" is useless — show absolute date/time.
+  if (hours >= 24) {
+    const opts = { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' };
+    return `<div class="reset-time">resets ${d.toLocaleString(undefined, opts)}</div>`;
+  }
+
   const totalMins = Math.floor(diff / 60000);
-  const h = Math.floor(totalMins / 60);
   const m = totalMins % 60;
-  const text = h > 0 ? `resets in ${h}h ${m}m` : `resets in ${m}m`;
+  const text = hours > 0 ? `resets in ${hours}h ${m}m` : `resets in ${m}m`;
   return `<div class="reset-time">${text}</div>`;
 }
 

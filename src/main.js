@@ -16,6 +16,7 @@ if (!app.requestSingleInstanceLock()) {
 let tray = null;
 let panel = null;
 let closeTimer = null;
+let pinned = false;             // true = opened via click; auto-close timers ignored
 const HOVER_CLOSE_DELAY = 350;
 
 app.whenReady().then(init);
@@ -49,9 +50,36 @@ async function init() {
   });
 
   panel.loadFile(path.join(__dirname, 'renderer', 'index.html'));
-  panel.on('blur', () => panel.hide());
+
+  // Any time the panel actually has focus, treat it as pinned. This covers
+  // both tray-click opens and clicks landing inside the rendered UI (e.g.
+  // pressing Refresh after a hover-open promotes it to a sticky session).
+  panel.on('focus', () => { pinned = true; });
+  panel.on('blur', () => {
+    panel.hide();
+    pinned = false;
+  });
 
   setupIPC();
+  setupAutoUpdate();
+}
+
+function setupAutoUpdate() {
+  // Only check for updates in installed builds — dev sessions running via
+  // `npm start` would otherwise try to "update" themselves to the latest
+  // release and fail noisily.
+  if (!app.isPackaged) return;
+
+  const { autoUpdater } = require('electron-updater');
+  autoUpdater.autoDownload = true;
+  autoUpdater.autoInstallOnAppQuit = true;
+
+  const check = () => autoUpdater.checkForUpdatesAndNotify().catch(err => {
+    console.warn('autoUpdater check failed:', err && err.message);
+  });
+
+  check();                                            // on startup
+  setInterval(check, 6 * 60 * 60 * 1000);             // every 6h while running
 }
 
 function clearCloseTimer() {
@@ -59,30 +87,34 @@ function clearCloseTimer() {
 }
 
 function scheduleClose() {
+  if (pinned) return;                    // pinned panels stay until outside-click
   clearCloseTimer();
   closeTimer = setTimeout(() => {
-    if (panel.isVisible()) panel.hide();
+    if (panel.isVisible() && !pinned) panel.hide();
   }, HOVER_CLOSE_DELAY);
 }
 
 function showPanel() {
+  // Tray hover. Transient: closes when the cursor leaves both tray and panel.
   clearCloseTimer();
   if (panel.isVisible()) return;
+  pinned = false;
   placePanel();
   panel.showInactive();                   // don't steal focus from active window
   panel.webContents.send('panel-opened');
 }
 
 function togglePanel() {
+  // Tray click. Either dismiss a pinned panel, or open+pin one.
   clearCloseTimer();
-  if (panel.isVisible()) {
+  if (panel.isVisible() && pinned) {
     panel.hide();
-  } else {
-    placePanel();
-    panel.show();
-    panel.focus();
-    panel.webContents.send('panel-opened');
+    return;
   }
+  if (!panel.isVisible()) placePanel();
+  panel.show();
+  panel.focus();                          // triggers focus event → pinned=true
+  panel.webContents.send('panel-opened');
 }
 
 function placePanel() {

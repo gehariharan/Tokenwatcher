@@ -51,6 +51,16 @@ Click the gear icon ⚙ in the panel header to:
 
 Settings live at `%APPDATA%\TokenWatcher\settings.json`.
 
+## Updates
+
+TokenWatcher checks for new versions on launch and every 6 hours while running. When a new version is published to GitHub Releases:
+
+1. The newer installer is downloaded silently in the background (only changed bytes — typically a few MB instead of the full 86 MB)
+2. A native Windows toast appears: *"TokenWatcher x.y.z is ready to install"*
+3. Click the toast to restart and apply, or it applies automatically on next launch
+
+No need to re-download from GitHub or `winget upgrade` — installed users get every release automatically.
+
 ## How it works
 
 - **Codex** — reads the OpenAI Codex CLI's OAuth token from `~/.codex/auth.json` and calls the same private endpoint the CLI uses (`chatgpt.com/backend-api/wham/usage`). No additional sign-in needed if you already use the `codex` CLI.

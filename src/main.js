@@ -74,7 +74,27 @@ function setupAutoUpdate() {
   autoUpdater.autoDownload = true;
   autoUpdater.autoInstallOnAppQuit = true;
 
-  const check = () => autoUpdater.checkForUpdatesAndNotify().catch(err => {
+  // We don't use checkForUpdatesAndNotify() because it raises a native OS
+  // toast — we want the update prompt rendered inside our own panel instead.
+  autoUpdater.on('update-downloaded', info => {
+    if (panel && !panel.isDestroyed()) {
+      panel.webContents.send('update-ready', {
+        version: info.version,
+        releaseNotes: typeof info.releaseNotes === 'string' ? info.releaseNotes : '',
+        releaseName: info.releaseName || '',
+      });
+    }
+  });
+
+  autoUpdater.on('error', err => {
+    console.warn('autoUpdater error:', err && err.message);
+  });
+
+  ipcMain.on('apply-update', () => {
+    autoUpdater.quitAndInstall();
+  });
+
+  const check = () => autoUpdater.checkForUpdates().catch(err => {
     console.warn('autoUpdater check failed:', err && err.message);
   });
 

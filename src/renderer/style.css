@@ -297,6 +297,66 @@ body {
 }
 .text-btn:hover { background: var(--surface-hover); color: var(--text); }
 
+/* ── Update banner ───────────────────────────── */
+
+.update-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 7px 12px;
+  background: linear-gradient(90deg, #0d9488 0%, #14b8a6 100%);
+  color: #fff;
+  font-size: 11px;
+  flex-shrink: 0;
+  cursor: pointer;
+  user-select: none;
+  animation: slide-in 0.25s ease-out;
+}
+
+@keyframes slide-in {
+  from { transform: translateY(-100%); opacity: 0; }
+  to   { transform: translateY(0); opacity: 1; }
+}
+
+.update-banner-text {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.update-banner-pill {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  background: rgba(255,255,255,0.22);
+  padding: 2px 6px;
+  border-radius: 3px;
+  flex-shrink: 0;
+}
+
+#update-banner-msg {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+#update-banner-btn {
+  border: 1px solid rgba(255,255,255,0.4);
+  background: rgba(255,255,255,0.18);
+  color: #fff;
+  padding: 4px 10px;
+  border-radius: 5px;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background 0.15s;
+}
+#update-banner-btn:hover { background: rgba(255,255,255,0.32); }
+
 /* ── Settings view ───────────────────────────── */
 
 .settings-body {

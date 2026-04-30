@@ -1,6 +1,6 @@
 {
   "name": "tokenwatcher",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "System tray app showing OpenAI Codex and Claude usage limits",
   "main": "src/main.js",
   "author": "TokenWatcher Contributors",

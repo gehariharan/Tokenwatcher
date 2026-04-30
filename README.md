@@ -55,11 +55,11 @@ Settings live at `%APPDATA%\TokenWatcher\settings.json`.
 
 TokenWatcher checks for new versions on launch and every 6 hours while running. When a new version is published to GitHub Releases:
 
-1. The newer installer is downloaded silently in the background (only changed bytes — typically a few MB instead of the full 86 MB)
-2. A native Windows toast appears: *"TokenWatcher x.y.z is ready to install"*
-3. Click the toast to restart and apply, or it applies automatically on next launch
+1. The newer installer is downloaded silently in the background (only changed bytes via `electron-builder` blockmap — typically a few MB instead of the full 86 MB)
+2. A teal **Update banner** appears at the top of the panel showing the new version + a one-line release-note summary (full notes on hover)
+3. Click the banner or the *Restart & install* button to apply, or it applies automatically on next launch
 
-No need to re-download from GitHub or `winget upgrade` — installed users get every release automatically.
+No need to re-download from GitHub or run `winget upgrade` — installed users get every release automatically.
 
 ## How it works
 

@@ -10,8 +10,37 @@ document.addEventListener('DOMContentLoaded', async () => {
   bindUI();
 
   window.api.onPanelOpened(() => fetchAll());
+  window.api.onUpdateReady(showUpdateBanner);
   fetchAll();
 });
+
+function showUpdateBanner(info) {
+  const banner = document.getElementById('update-banner');
+  const msg = document.getElementById('update-banner-msg');
+  const summary = summarizeReleaseNotes(info.releaseNotes);
+  msg.textContent = summary
+    ? `v${info.version} ready — ${summary}`
+    : `v${info.version} ready to install`;
+  if (info.releaseNotes) {
+    banner.title = stripHtml(info.releaseNotes).slice(0, 400);
+  }
+  banner.classList.remove('hidden');
+}
+
+function summarizeReleaseNotes(notes) {
+  if (!notes) return '';
+  const text = stripHtml(notes).trim();
+  // Prefer the first non-bullet sentence; otherwise the first bullet.
+  const firstLine = text.split(/\r?\n/).map(l => l.trim()).find(l => l.length > 0) || '';
+  const cleaned = firstLine.replace(/^[-*•]\s*/, '');
+  return cleaned.length > 60 ? cleaned.slice(0, 57) + '…' : cleaned;
+}
+
+function stripHtml(html) {
+  const tmp = document.createElement('div');
+  tmp.innerHTML = html;
+  return tmp.textContent || '';
+}
 
 function bindUI() {
   document.getElementById('refresh-btn').addEventListener('click', fetchAll);
@@ -19,6 +48,10 @@ function bindUI() {
   document.getElementById('back-btn').addEventListener('click', closeSettings);
   document.getElementById('watch-codex').addEventListener('change', onToggleChange);
   document.getElementById('watch-claude').addEventListener('change', onToggleChange);
+
+  // Update banner — clicking anywhere on it (or the button) installs the update.
+  const banner = document.getElementById('update-banner');
+  banner.addEventListener('click', () => window.api.applyUpdate());
 
   // Tell main when the cursor is inside the panel so it keeps the panel open
   // while we're using it. We use mouseenter/mouseleave (not over/out) so child

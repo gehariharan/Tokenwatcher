@@ -15,4 +15,10 @@ contextBridge.exposeInMainWorld('api', {
   },
   panelMouseEnter: () => ipcRenderer.send('panel-mouse-enter'),
   panelMouseLeave: () => ipcRenderer.send('panel-mouse-leave'),
+  onUpdateReady: cb => {
+    const handler = (_, info) => cb(info);
+    ipcRenderer.on('update-ready', handler);
+    return () => ipcRenderer.removeListener('update-ready', handler);
+  },
+  applyUpdate: () => ipcRenderer.send('apply-update'),
 });
